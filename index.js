@@ -2,6 +2,8 @@ const express = require("express");
 const app = express();
 const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
+const nodemailer = require('nodemailer');
+const jwt = require('jsonwebtoken');
 
 mongoose.connect("mongodb://jagadeesh:pass123@ds337377.mlab.com:37377/jagadeesh-express-app",
 { useNewUrlParser : true },function(error){
@@ -15,87 +17,186 @@ mongoose.connect("mongodb://jagadeesh:pass123@ds337377.mlab.com:37377/jagadeesh-
 app.use(bodyParser.json());
 app.listen(3000, () => console.log('Server started at port : 3000'));
 
-const Product = mongoose.model('Product', {
-    title: {type : String},
-    description: { type : String },
-    imageUrl: {type : String},
-    stock:{type : Number},
-    variant:{ type : String},
-    brand:{ type : String},
-    category:{ type : String},
-    price:{ type : Number},
-    isAvailable:{type : Boolean}
+const User = mongoose.model('User', {
+    email : { type:String , required : true , unique : true ,
+        match:/^([a-zA-Z0-9_\-\.]+)@([a-zA-Z0-9_\-\.]+)\.([a-zA-Z]{2,5})$/ },
+    password : { type:String , required : true, unique: false },
+    otp : {type : String}
 });
 
-app.get('/products', async (req, res) => {
-    console.log(req);
-    try{
-        const products = await Product.find();
-        res.json(products);
-    }catch(err){
-        res.json({ message : err });
-    }
+app.post('/user/signup', (req,res,next) => {
+    User.find({email : req.body.email })
+    .exec()
+    .then(user => {
+        if(user.length >= 1 ) {
+            return res.status(409).json({
+                message: 'mail already exists'
+            });
+        } else {
+            const user = new User({
+                email: req.body.email,
+                password: req.body.password
+                });
+            try{
+                const savedUser = user.save();
+                res.json({message : 'user created'});
+            } catch(err){
+                res.json({message : err});
+            }        
+        }
+    })
 });
+  
+app.post("/user/login", (req, res, next) => {
+    User.find({ email: req.body.email })
+      .exec()
+      .then(user => {
+        if (user.length < 1) {
+          return res.status(401).json({
+            message: "Auth failed"
+          });
+        }
+        if (req.body.password === user[0].password) {
+            const token = jwt.sign(
+                {
+                  email: user[0].email,
+                  userId: user[0]._id
+                },
+                process.env.JWT_KEY,{
+                    expiresIn: "1h"
+                });
+              return res.status(200).json({
+              message: "Auth successful",
+              token : token
+            });
+          }else{
+            return res.status(404).json({
+                message: "Auth failed"
+            });              
+          }
+        })
+      .catch(err => {
+        console.log(err);
+        res.status(500).json({
+          error: err
+        });
+      });
+  });
 
-app.put('/products/:id', async (req,res) => {
-// console.log(req);
-try{
-    const updatedProduct = await Product.update(
-        {_id : req.params.id},
-        {$set: {
-            title: req.body.title,
-            description: req.body.description,
-            imageUrl: req.body.imageUrl,
-            stock:req.body.stock,
-            variant:req.body.variant,
-            brand:req.body.brand,
-            category:req.body.category,
-            price:req.body.price,
-            isAvailable:req.body.isAvailable 
-        }}
-    );
-    res.json({"message":"Successfully updatedProduct"});
-}catch(err){
-    console.error("Error\n\n",err);
-    res.json({message:err});
-}
-})
-
-app.get('/products/:productId', async (req, res) => {
+app.delete('/user/delete/:id', async (req,res,next) =>{
     try{
-        const product = await Product.findById(req.params.productId);
-        res.json(product);
-    }catch(err){
-        res.json({ message : err });
-    }
-});
-
-app.post('/products', async (req,res) => {
-    const product = new Product({
-        title: req.body.title,
-        description: req.body.description,
-        imageUrl: req.body.imageUrl,
-        stock:req.body.stock,
-        variant:req.body.variant,
-        brand:req.body.brand,
-        category:req.body.category,
-        price:req.body.price,
-        isAvailable:req.body.isAvailable        
-    });
-    try{
-        const savedProduct = await product.save();
-        res.json(savedProduct);
-    } catch(err){
-        res.json({message : err});
-    }
-});
-
-app.delete('/products/:productId', async (req,res) =>{
-    console.log(req)
-    try{
-        const removedProduct = await Product.remove({_id: req.params.productId});
-        res.json(removedProduct);
+        const removedUser = await User.remove({_id: req.params.id});
+        res.json(removedUser);
     }catch(err){
         res.json({message : err});
     }
 });
+
+app.post('/user/reset-password', (req, res, next) => {
+    User.find({ email: req.body.email })
+      .exec()
+      .then(user => {
+        if (user.length < 1) {
+          return res.status(401).json({
+            message: "email doesnot exist"
+          });
+        }
+        if (req.body.oldpassword === user[0].password) {
+            user[0].password = req.body.newpassword;
+            console.log(user[0].password);
+            const resetpassword = user[0].save();
+            return res.status(200).json({
+              message: "password reset successful"
+            });
+          }else{
+            return res.status(404).json({
+                message: "password reset failed"
+            });              
+          }
+        })
+      .catch(err => {
+        console.log(err);
+        res.status(500).json({
+          error: err
+        });
+      });
+  });
+
+  app.post('/user/forgot-password', (req, res, next) => {
+    User.find({ email: req.body.email })
+      .exec()
+      .then(user => {
+        if (user.length < 1) {
+          return res.status(401).json({
+            message: "email doesnot exist"
+          });
+        }
+        let transporter = nodemailer.createTransport({
+            service: 'gmail',
+            secure : false,
+            post : 25,
+            auth: {
+              user: 'jagguappnew@gmail.com',
+              pass: 'asdf@123'
+            },
+            tls: {
+                rejectUnauthorized : false
+            }
+          });
+          val = 'secret';
+          let HelperOptions = {
+            from: '"express-app" <jagguappnew@gmail.com',
+            to: req.body.email,
+            subject: 'your recovery otp',
+            text: val 
+          };
+          
+          transporter.sendMail(HelperOptions, function(error, info){
+            if (error) {
+              console.log(error);
+            } else {
+              console.log('Email sent: ' + info.response);
+            }
+          });
+
+          user[0].otp = val;
+          const sentotp = user[0].save();
+
+        })
+      .catch(err => {
+        console.log(err);
+        res.status(500).json({
+          error: err
+        });
+      });
+  });
+
+app.post('/user/reset-forgot-password', (req, res, next) => {
+    User.find({ email: req.body.email })
+      .exec()
+      .then(user => {
+        if (user.length < 1) {
+          return res.status(401).json({
+            message: "email doesnot exist"
+          });
+        }
+        if (req.body.otp === user[0].otp) {
+            user[0].password = req.body.password;
+            console.log(user[0].password);
+            const resetpassword = user[0].save();
+            return res.status(200).json({
+              message: "password reset successful"
+            });
+          }else{
+            return res.status(404).json({
+                message: "password reset failed"
+            });              
+          }
+        })
+      .catch(err => {
+        console.log(err);
+        res.status(500).json({
+          error: err
+        });
+      });
+  });
