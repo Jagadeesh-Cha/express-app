@@ -56,8 +56,8 @@ app.post('/user/image-upload',
         try {
           AWS.config.setPromisesDependency();
           AWS.config.update({
-            accessKeyId: 'AKIAIPMUMT22EMHV5JZA',
-            secretAccessKey: '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',
+            accessKeyId: '',
+            secretAccessKey: '',
             region: 'ap-south-1'
           });
           const s3 = new AWS.S3();
@@ -107,8 +107,8 @@ app.get('/user/images/get',
       .then(user => {
         try {
           AWS.config.update({
-            accessKeyId: 'AKIAIPMUMT22EMHV5JZA',
-            secretAccessKey: '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',
+            accessKeyId: '',
+            secretAccessKey: '',
             region: 'ap-south-1'
           });
           const s3 = new AWS.S3();
@@ -138,8 +138,8 @@ app.delete('/user/images/delete',
       .then(user => {
         try {
           AWS.config.update({
-            accessKeyId: 'AKIAIPMUMT22EMHV5JZA',
-            secretAccessKey: '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',
+            accessKeyId: '',
+            secretAccessKey: '',
             region: 'ap-south-1'
           });
           const s3 = new AWS.S3();
@@ -180,8 +180,8 @@ app.post('/user/signup', (req, res, next) => {
         try {
           const savedUser = user.save();
           AWS.config.update({
-            accessKeyId: 'AKIAIPMUMT22EMHV5JZA',
-            secretAccessKey: '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',
+            accessKeyId: '',
+            secretAccessKey: '',
             region: 'ap-south-1'
           });
           const s3 = new AWS.S3();
@@ -249,8 +249,8 @@ app.delete('/user/delete/:id', (req, res, next) => {
     .exec()
     .then(user => {
       AWS.config.update({
-        accessKeyId: 'AKIAIPMUMT22EMHV5JZA',
-        secretAccessKey: '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',
+        accessKeyId: '',
+        secretAccessKey: '',
         region: 'ap-south-1'
       });
       const s3 = new AWS.S3();
